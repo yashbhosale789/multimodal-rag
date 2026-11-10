@@ -109,6 +109,11 @@ with st.sidebar:
                         st.warning(
                             f"{len(body['failed_images'])} image(s) could not be described; re-upload to retry."
                         )
+                    if body.get("graph_failed_chunks"):
+                        st.warning(
+                            f"{body['graph_failed_chunks']} chunk(s) are missing from the knowledge graph; "
+                            "re-upload to retry."
+                        )
     st.caption(f"Session {session_id[:8]}")
 
 for message in st.session_state.messages:

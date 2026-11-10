@@ -12,6 +12,7 @@ from app.governance.guardrails import INJECTION_THRESHOLD, injection_score
 from app.governance.pii import mask_pii
 from app.ingestion.vision import IMAGE_TAG
 from app.llm import make_llm
+from app.stores.graph import expand
 from app.stores.vector import get_vector_store
 
 log = logging.getLogger(__name__)
@@ -93,7 +94,12 @@ def retrieve(state: RAGState) -> dict:
     hits = get_vector_store().similarity_search_with_score(query, k=4)
     for doc, score in hits:
         doc.metadata["score"] = round(score, 3)  # for the request log; prompts never see metadata
-    return {"documents": [doc for doc, _ in hits]}
+    docs = [doc for doc, _ in hits]
+    try:  # expand from the raw vector hits, before grading: the grader may drop a bridge chunk on its own
+        return {"documents": docs + expand([d.id for d in docs])}
+    except Exception as e:  # the graph only adds context: answer from vector hits rather than fail the chat
+        log.error("Graph expansion failed, using vector results only: %s", e)
+        return {"documents": docs}
 
 
 def grade(state: RAGState) -> dict:
@@ -109,7 +115,8 @@ def grade(state: RAGState) -> dict:
         docs[i] for i in dict.fromkeys(result.relevant) if 0 <= i < len(docs)
     ]  # LLM may invent indexes
     return {
-        "documents": keep,
+        # General questions answer from model knowledge: kept chunks would give an uncited "Document" answer.
+        "documents": keep if result.needs_sources else [],
         "complete": result.complete,
         "needs_current": result.needs_current,
         "needs_sources": result.needs_sources,

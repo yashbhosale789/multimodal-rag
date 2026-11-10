@@ -27,6 +27,11 @@ class Settings(BaseSettings):
     # Prompt-injection classifier on Groq; 512-token window, so questions are capped at 1000 chars.
     guard_model: str = "meta-llama/llama-prompt-guard-2-86m"
 
+    # Knowledge graph. The default URI is for local runs; docker-compose overrides it to bolt://neo4j:7687.
+    neo4j_uri: str = "bolt://localhost:7687"
+    neo4j_user: str = "neo4j"
+    neo4j_password: str
+
     embedding_model: str = "gemini-embedding-001"
     embedding_dim: int = 768
 

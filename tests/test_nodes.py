@@ -19,6 +19,15 @@ def test_grade_keeps_only_valid_unique_indexes(monkeypatch):
     assert update["needs_sources"] is True and update["complete"] is True
 
 
+def test_grade_drops_chunks_when_no_sources_are_needed(monkeypatch):
+    fake = nodes.Grade(relevant=[0], complete=True, needs_current=False, needs_sources=False)
+    monkeypatch.setattr(nodes, "grader", RunnableLambda(lambda prompt: fake))
+
+    update = nodes.grade({"question": "What is a lithium-ion battery?", "documents": [Document("Acme's packs")]})
+
+    assert update["documents"] == []  # -> generate uses the model-knowledge prompt, badge "Model knowledge"
+
+
 @pytest.mark.parametrize("state, expected", [
     ({"needs_sources": False, "needs_current": False, "documents": [], "complete": False}, "generate"),
     ({"needs_sources": True, "needs_current": True, "documents": [DOC], "complete": True}, "web_search"),
@@ -41,6 +50,33 @@ def test_guard_blocks_only_confident_injections(monkeypatch, score, blocked):
     assert nodes.after_guard(update) == ("blocked" if blocked else "retrieve")
     if blocked:
         assert update["sources"] == ["Blocked"] and update["generation"] == nodes.REFUSAL
+
+
+class FakeVectorStore:
+    def similarity_search_with_score(self, query, k):
+        return [(Document("hop 1: Orinda goes live", id="it#3"), 0.81)]
+
+
+def test_retrieve_adds_graph_chunks_expanded_from_the_vector_hits(monkeypatch):
+    seeds = []
+    hop2 = Document("Orinda's head office is in Tallinn", id="orinda#0", metadata={"retrieved_by": "graph"})
+    monkeypatch.setattr(nodes, "get_vector_store", lambda: FakeVectorStore())
+    monkeypatch.setattr(nodes, "expand", lambda ids: seeds.extend(ids) or [hop2])
+
+    docs = nodes.retrieve({"question": "q"})["documents"]
+
+    assert seeds == ["it#3"]  # seeds are the raw vector hits, not what the grader keeps
+    assert [d.id for d in docs] == ["it#3", "orinda#0"] and docs[0].metadata["score"] == 0.81
+
+
+def test_retrieve_falls_back_to_vector_hits_when_the_graph_is_down(monkeypatch):
+    def down(ids):
+        raise ConnectionError("neo4j unreachable")
+
+    monkeypatch.setattr(nodes, "get_vector_store", lambda: FakeVectorStore())
+    monkeypatch.setattr(nodes, "expand", down)
+
+    assert [d.id for d in nodes.retrieve({"question": "q"})["documents"]] == ["it#3"]
 
 
 def test_rewrite_sets_query_and_counts_the_retry(monkeypatch):

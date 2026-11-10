@@ -24,5 +24,8 @@ python-multipart>=0.0.20  # FastAPI needs it to receive file uploads
 # --- M5: observability ---
 langfuse>=5.2
 
+# --- M4.5: knowledge graph ---
+neo4j>=6.4
+
 # --- dev ---
 pytest>=8

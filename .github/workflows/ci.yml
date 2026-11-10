@@ -17,6 +17,7 @@ jobs:
       OPENROUTER_API_KEY: ci-placeholder
       GROQ_API_KEY: ci-placeholder
       TAVILY_API_KEY: ci-placeholder
+      NEO4J_PASSWORD: ci-placeholder
       LANGFUSE_PUBLIC_KEY: ci-placeholder
       LANGFUSE_SECRET_KEY: ci-placeholder
       LANGFUSE_BASE_URL: https://cloud.langfuse.com
