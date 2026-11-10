@@ -115,7 +115,8 @@ def grade(state: RAGState) -> dict:
         docs[i] for i in dict.fromkeys(result.relevant) if 0 <= i < len(docs)
     ]  # LLM may invent indexes
     return {
-        "documents": keep,
+        # General questions answer from model knowledge: kept chunks would give an uncited "Document" answer.
+        "documents": keep if result.needs_sources else [],
         "complete": result.complete,
         "needs_current": result.needs_current,
         "needs_sources": result.needs_sources,

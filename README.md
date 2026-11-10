@@ -118,13 +118,18 @@ because the OpenRouter free quota was exhausted):
 | Multi-hop across two files | **0/2** | **2/2** |
 | Aggregation ("list every supplier") | 1/1 | 0/1 |
 | **Total correct** | **13/15** | **14/15** |
-| Correct route / hallucination signal | 14/15 / 1 | 15/15 / 0 |
-| Average latency / tokens per question | 9.2 s / 1,617 | 13.7 s / 2,191 |
+| Correct route / hallucination signal | 14/15 / 1 | 14/15 / 1 |
+| Average latency / tokens per question | 9.2 s / 1,617 | 13.3 s / 2,166 |
 
 In both multi-hop answers, the first hop came from vector search and the second from graph expansion (each chunk's
 route is logged as `via: vector | graph | web`). The aggregation result is not a graph regression: re-ingestion split
 the annual report into one more chunk, which pushed the fifth supplier out of the top four. See
 [Known limitations](#known-limitations).
+
+The "vector + graph" run was inside the Docker containers. Its one routing miss was a general-knowledge question
+answered from (graph-expanded) document chunks with no citations; the grader had judged it to need no sources. Since
+that run, chunks are dropped whenever the grader says no sources are needed, so such questions always use model
+knowledge.
 
 ## Design decisions
 
@@ -186,7 +191,7 @@ guarantee is in [`docs/governance.md`](docs/governance.md).
 ## Development
 
 ```bash
-python -m pytest             # 64 unit tests; fakes only, no network calls, no real keys needed
+python -m pytest             # 65 unit tests; fakes only, no network calls, no real keys needed
 python samples/generate.py   # regenerate the synthetic corpus
 ```
 

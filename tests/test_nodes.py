@@ -19,6 +19,15 @@ def test_grade_keeps_only_valid_unique_indexes(monkeypatch):
     assert update["needs_sources"] is True and update["complete"] is True
 
 
+def test_grade_drops_chunks_when_no_sources_are_needed(monkeypatch):
+    fake = nodes.Grade(relevant=[0], complete=True, needs_current=False, needs_sources=False)
+    monkeypatch.setattr(nodes, "grader", RunnableLambda(lambda prompt: fake))
+
+    update = nodes.grade({"question": "What is a lithium-ion battery?", "documents": [Document("Acme's packs")]})
+
+    assert update["documents"] == []  # -> generate uses the model-knowledge prompt, badge "Model knowledge"
+
+
 @pytest.mark.parametrize("state, expected", [
     ({"needs_sources": False, "needs_current": False, "documents": [], "complete": False}, "generate"),
     ({"needs_sources": True, "needs_current": True, "documents": [DOC], "complete": True}, "web_search"),
