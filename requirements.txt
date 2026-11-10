@@ -1,0 +1,28 @@
+# --- M1: API + UI shell ---
+fastapi>=0.115
+uvicorn[standard]>=0.32
+streamlit>=1.40
+httpx>=0.27
+pydantic-settings>=2.6
+
+# --- M2: vector store ---
+pinecone>=7.3
+langchain-pinecone>=0.2.13
+langchain-google-genai>=4.4
+
+# --- M3: ingestion ---
+pymupdf4llm>=2.1
+python-docx>=1.2
+langchain-openai>=1.7
+langchain-groq>=1.1
+
+# --- M4: agent ---
+langgraph>=1.2
+tavily-python>=0.8
+python-multipart>=0.0.20  # FastAPI needs it to receive file uploads
+
+# --- M5: observability ---
+langfuse>=5.2
+
+# --- dev ---
+pytest>=8

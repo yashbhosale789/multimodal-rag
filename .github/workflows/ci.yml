@@ -1,0 +1,63 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:  # placeholders, not secrets: the unit tests use fakes and never call the real services
+      GOOGLE_API_KEY: ci-placeholder
+      PINECONE_API_KEY: ci-placeholder
+      OPENROUTER_API_KEY: ci-placeholder
+      GROQ_API_KEY: ci-placeholder
+      TAVILY_API_KEY: ci-placeholder
+      LANGFUSE_PUBLIC_KEY: ci-placeholder
+      LANGFUSE_SECRET_KEY: ci-placeholder
+      LANGFUSE_BASE_URL: https://cloud.langfuse.com
+      LANGFUSE_TRACING_ENABLED: "false"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"  # same as the Docker base image
+          cache: pip
+          cache-dependency-path: requirements.lock
+      - run: pip install -r requirements.lock  # exactly what the image installs
+      - run: python -m pytest -q  # "python -m" puts the repo root on sys.path so `import app` works
+
+  image:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write  # publish to GitHub Container Registry with the built-in token
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
+        if: github.event_name == 'push'
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/metadata-action@v6
+        id: meta
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=raw,value=latest
+            type=sha
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          push: ${{ github.event_name == 'push' }}  # pull requests only prove the image builds
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

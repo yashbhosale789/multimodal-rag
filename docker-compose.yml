@@ -1,0 +1,29 @@
+services:
+  api:
+    build: .
+    image: multimodal-rag
+    env_file: .env  # API keys reach only this container, never the ui
+    ports:
+      - "127.0.0.1:8000:8000"  # localhost only: this port now spends your API quota
+    volumes:
+      - data:/code/data  # extracted images survive container restarts
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  ui:
+    image: multimodal-rag  # reuses the api's image, no second build
+    pull_policy: never     # it's a local image; don't look for it on Docker Hub
+    command: ["streamlit", "run", "app/ui/Home.py", "--server.address", "0.0.0.0"]
+    environment:
+      API_URL: http://api:8000
+    ports:
+      - "127.0.0.1:8501:8501"
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  data:
