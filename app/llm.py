@@ -21,7 +21,7 @@ def make_llm(openrouter_model: str, groq_model: str, schema=None):
     fallback = ChatGroq(
         model=groq_model,
         api_key=settings.groq_api_key,
-        max_retries=2,
+        max_retries=6,  # last line of defence: Groq's free tier is 8K tokens/min, so wait for the window to refill
         timeout=60,
         temperature=0,
     )

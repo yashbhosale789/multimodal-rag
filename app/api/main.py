@@ -85,8 +85,9 @@ def _log_chat(question: str, session_id: str | None, result: dict, stats: dict, 
     log.info("chat", extra={"fields": stats | {  # trace_id is the bridge: paste it into Langfuse
         "session_id": session_id,
         "question": question,
-        "chunks": [{"id": d.id or d.metadata.get("url"), "score": d.metadata.get("score")}
-                   for d in result.get("documents", [])],
+        "chunks": [{"id": d.id or d.metadata.get("url"), "score": d.metadata.get("score"),
+                    "via": "web" if "url" in d.metadata else d.metadata.get("retrieved_by", "vector")}
+                   for d in result.get("documents", [])],  # via: shows whether the graph contributed
         "sources": result.get("sources"),
         "answer": result.get("generation"),
         "removed_citations": result.get("removed_citations"),  # hallucination signal

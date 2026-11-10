@@ -123,7 +123,7 @@ def test_chat_returns_trace_id_and_logs_one_json_line(monkeypatch, caplog):
     line = json.loads(JsonFormatter().format(_request_log(caplog)))
     assert set(body) == {"answer", "sources", "citations", "trace_id"}
     assert len(body["trace_id"]) == 32 and line["trace_id"] == body["trace_id"]  # exists even with tracing off
-    assert line["chunks"] == [{"id": "abc#0", "score": 0.71}]
+    assert line["chunks"] == [{"id": "abc#0", "score": 0.71, "via": "vector"}]
     assert line["session_id"] == "s1" and line["error"] is None and line["latency_ms"] >= 0
 
 

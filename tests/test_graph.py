@@ -54,6 +54,27 @@ def test_relation_type_outside_allowlist_never_reaches_the_query():
     assert not any("DETACH DELETE" in q for q in tx.queries)
 
 
+class FakeDriver:
+    def __init__(self, nodes):
+        self.nodes, self.params = nodes, None
+
+    def execute_query(self, query, **params):
+        self.params = params
+        return type("Result", (), {"records": [{"c": n} for n in self.nodes]})()
+
+
+def test_expand_returns_citable_documents_tagged_as_graph(monkeypatch):
+    node = {"chunk_id": "orinda#0", "text": "Head office: Tallinn", "doc_id": "orinda", "source": "o.docx", "section": "Company"}
+    driver = FakeDriver([node])
+    monkeypatch.setattr(graph, "get_driver", lambda: driver)
+
+    [doc] = graph.expand(["it#3"])
+
+    assert driver.params == {"seed_ids": ["it#3"], "limit": 6}  # seeds and limit are parameters, never query text
+    assert doc.id == "orinda#0" and doc.page_content == "Head office: Tallinn"
+    assert doc.metadata == {"doc_id": "orinda", "source": "o.docx", "section": "Company", "retrieved_by": "graph"}
+
+
 def test_allowlisted_relation_type_is_written():
     tx = FakeTx()
     graph._write_chunk(tx, "d#0", {}, [], [{"type": "LOCATED_IN", "source": "a", "target": "b", "detail": ""}])
