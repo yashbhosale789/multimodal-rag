@@ -4,7 +4,10 @@ Facts are deliberately split across text, tables and images, and across the two 
 so each pipeline stage has something only it can find. Expected answers: samples/README.md.
 """
 
+import io
 import tempfile
+import zipfile
+from datetime import datetime
 from pathlib import Path
 
 import pymupdf
@@ -158,9 +161,85 @@ table.grid th, table.grid td { border: 1px solid black; }
 """
 
 
-def build_pdf(img_dir, path):
+# --- Graph RAG corpus (M4.5) -------------------------------------------------------------
+# Each multi-hop answer needs two facts in different files, and the second file never names
+# the entity in the question. The report around each first hop is full of distractor sections
+# that repeat the question's keywords, so vector top-4 fills up before reaching the second hop.
+
+OPERATIONS = {
+    "1. Reno Line Capacity": "Acme's Reno line ran at 94% of nameplate capacity in Q1 2026, up from 81% a year "
+    "earlier. The Reno line now assembles about 260 battery packs per week for electric bus customers.",
+    "2. Reno Line Shift Pattern": "A third shift was added to the Reno line in February 2026. Reno line staffing "
+    "rose to 310 operators across three shifts, and overtime on the Reno line fell by 40%.",
+    "3. Reno Line Safety": "The Reno line recorded 412 days without a lost-time incident. Acme introduced new "
+    "thermal-runaway drills on the Reno line and retrained all Reno line supervisors.",
+    "4. Reno Line Maintenance": "Planned maintenance on the Reno line moved to a predictive schedule. Unplanned "
+    "downtime on Acme's Reno line dropped from 6.2% to 2.9% of scheduled hours.",
+    "5. Reno Line Shipments": "Reno line shipments reached 3,100 packs in Q1 2026. Most Reno line output goes to "
+    "three electric bus manufacturers in North America.",
+    "6. Reno Line Sub-Assemblies": "Module housings and busbar sub-assemblies for the Reno line are supplied by "
+    "Halvorsen Fabrication under a three-year agreement signed in January 2026.",
+}
+
+HALVORSEN = {
+    "Overview": "Halvorsen Fabrication is a precision metalwork company headquartered in Gothenburg, Sweden. It "
+    "machines aluminium housings and copper busbars for battery manufacturers.",
+    "Facilities": "Halvorsen operates two plants, in Gothenburg and Monterrey, with a combined 420 employees.",
+    "Certifications": "Both plants are certified to ISO 9001 and IATF 16949.",
+    "Customer Relationships": "Each customer is assigned a key account director. Tomas Lindqvist leads all "
+    "North American customer relationships.",
+}
+
+IT_ROADMAP = {
+    "1. ERP Upgrade": "Acme completed its ERP upgrade in March 2026. Finance and procurement now run on a single "
+    "system, and the old ERP will be switched off in September 2026.",
+    "2. Cybersecurity Audit": "An external cybersecurity audit of all Acme plants is scheduled for September "
+    "2026, following the new plant-network segmentation rolled out in spring.",
+    "3. Data Platform Migration": "Acme is migrating its data warehouse to a cloud platform. Training for all "
+    "analysts starts in September 2026, and the old warehouse will be retired in December.",
+    "4. Battery Analytics Platform": "Orinda Systems' battery-analytics platform goes live at Acme in September "
+    "2026. It will monitor cell temperature and state of health across every pack in service.",
+    "5. IT Service Desk": "Acme's IT service desk resolved 92% of tickets within one business day in 2026, and "
+    "a self-service portal launches in September 2026.",
+    "6. IT Budget": "Acme's 2026 IT budget is USD 18 million, with a mid-year review in September 2026.",
+}
+
+ORINDA = {
+    "Company": "Orinda Systems builds analytics software for energy-storage fleets. The company was founded in "
+    "2017 and its head office is in Tallinn, Estonia.",
+    "Products": "Its platform ingests telemetry from battery packs and predicts degradation and thermal risk.",
+    "Team": "Orinda employs 85 people, two thirds of them engineers.",
+}
+
+
+def sections_html(title, sections):
+    return f"<h1>{title}</h1>" + "".join(f"<h2>{h}</h2><p>{t}</p>" for h, t in sections.items())
+
+
+def save_docx(doc, path):
+    # Fixed timestamps: python-docx stamps the save time into the metadata and into every zip entry,
+    # which changes the file hash (= the document's ID in the index), so each regeneration would
+    # otherwise be indexed as a new document.
+    doc.core_properties.created = doc.core_properties.modified = datetime(2026, 1, 1)
+    buffer = io.BytesIO()
+    doc.save(buffer)
+    with zipfile.ZipFile(buffer) as src, zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as dst:
+        for item in src.infolist():
+            dst.writestr(zipfile.ZipInfo(item.filename, date_time=(2026, 1, 1, 0, 0, 0)), src.read(item))
+
+
+def text_docx(path, title, sections):
+    doc = Document()
+    doc.add_heading(title, 0)
+    for heading, text in sections.items():
+        doc.add_heading(heading, 1)
+        doc.add_paragraph(text)
+    save_docx(doc, path)
+
+
+def build_pdf(img_dir, path, html=PDF_HTML):
     story = pymupdf.Story(
-        PDF_HTML, user_css=PDF_CSS, archive=pymupdf.Archive(str(img_dir))
+        html, user_css=PDF_CSS, archive=pymupdf.Archive(str(img_dir))
     )
     writer = pymupdf.DocumentWriter(str(path))
     page = pymupdf.paper_rect("a4")
@@ -202,7 +281,7 @@ def build_docx(img_dir, path):
     doc.add_paragraph(
         "Account manager: Daniel Reyes, daniel.reyes@zentrix.example, +1-555-0142."
     )
-    doc.save(str(path))
+    save_docx(doc, path)
 
 
 if __name__ == "__main__":
@@ -213,6 +292,10 @@ if __name__ == "__main__":
         customer_pie(tmp / "customers.png")
         build_pdf(tmp, OUT / "Acme_Annual_Report_2025.pdf")
         build_docx(tmp, OUT / "Zentrix_Supplier_Profile.docx")
+        build_pdf(tmp, OUT / "Acme_Operations_Update_2026.pdf", sections_html("Acme Corp Operations Update 2026", OPERATIONS))
+        text_docx(OUT / "Halvorsen_Fabrication_Profile.docx", "Halvorsen Fabrication - Company Profile", HALVORSEN)
+        build_pdf(tmp, OUT / "Acme_IT_Roadmap_2026.pdf", sections_html("Acme Corp IT Roadmap 2026", IT_ROADMAP))
+        text_docx(OUT / "Orinda_Systems_Brief.docx", "Orinda Systems - Company Brief", ORINDA)
     print(
         "wrote", *sorted(p.name for p in OUT.iterdir() if p.suffix in {".pdf", ".docx"})
     )

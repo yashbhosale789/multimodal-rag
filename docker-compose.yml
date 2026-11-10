@@ -3,6 +3,8 @@ services:
     build: .
     image: multimodal-rag
     env_file: .env  # API keys reach only this container, never the ui
+    environment:
+      NEO4J_URI: bolt://neo4j:7687  # overrides .env's localhost: containers reach each other by service name
     ports:
       - "127.0.0.1:8000:8000"  # localhost only: this port now spends your API quota
     volumes:
@@ -12,6 +14,29 @@ services:
       interval: 10s
       timeout: 5s
       retries: 3
+    depends_on:
+      neo4j:
+        condition: service_healthy
+
+  neo4j:
+    image: neo4j:5.26-community  # long-term-support release
+    environment:
+      # Every NEO4J_* variable becomes a database setting, so this is the only one that carries the password.
+      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:?set NEO4J_PASSWORD in .env}  # sets the admin password on first start
+      # The JVM sizes itself from the host's RAM by default; cap it, this machine has OOM-killed containers.
+      NEO4J_server_memory_heap_initial__size: 256m
+      NEO4J_server_memory_heap_max__size: 512m
+      NEO4J_server_memory_pagecache_size: 256m
+    ports:
+      - "127.0.0.1:7474:7474"  # Neo4j Browser, to look at the graph
+      - "127.0.0.1:7687:7687"  # Bolt, for running the API outside Docker
+    volumes:
+      - neo4j-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "cypher-shell -u neo4j -p \"$${NEO4J_AUTH#neo4j/}\" 'RETURN 1'"]  # strip the "neo4j/" prefix
+      interval: 10s
+      timeout: 10s
+      retries: 12  # first start initialises the database and takes a while
 
   ui:
     image: multimodal-rag  # reuses the api's image, no second build
@@ -27,3 +52,4 @@ services:
 
 volumes:
   data:
+  neo4j-data:

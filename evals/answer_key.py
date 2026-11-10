@@ -46,12 +46,34 @@ CASES = [
         [],
         "Blocked",
     ),  # injection guard
+    # --- Graph RAG cases (M4.5): the second hop lives in a file that never names the question's entity
+    (
+        "Who manages the customer relationship for the supplier that provides sub-assemblies to Acme's Reno line?",
+        ["Tomas Lindqvist"],
+        "Document",
+    ),
+    (
+        "In which city is the vendor headquartered whose software goes live at Acme in September 2026?",
+        ["Tallinn"],
+        "Document",
+    ),
+    (
+        "List every company that supplies materials or components to Acme.",
+        {"all": ["Zentrix", "Borealis", "Halden", "Corvo", "Halvorsen"]},  # aggregation: every name required
+        "Document",
+    ),
 ]
 
 
 def squash(text: str) -> str:
     """Lowercase, all whitespace removed: LLMs write "45 %" and "Maria Okafor" with typographic spaces."""
     return "".join(text.lower().split())  # str.split() treats every Unicode space as whitespace
+
+
+def is_correct(text: str, accepted: list[str] | dict) -> bool:
+    if isinstance(accepted, dict):  # {"all": [...]}: every name must appear
+        return all(squash(a) in text for a in accepted["all"])
+    return not accepted or any(squash(a) in text for a in accepted)  # []: route-only case
 
 
 def main() -> None:
@@ -61,7 +83,7 @@ def main() -> None:
         r = answer(question, session_id=session)
         text, source = squash(r["generation"]), r["sources"][0]
         scores = {
-            "correct": not accepted or any(squash(a) in text for a in accepted),
+            "correct": is_correct(text, accepted),
             "route_ok": source.startswith(expected_source),
             "hallucination": bool(r["removed_citations"])
             or source.endswith("(uncited)"),
